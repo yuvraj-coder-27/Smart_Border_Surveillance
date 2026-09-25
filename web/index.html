@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel — Border Surveillance Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Quick overrides so Tailwind doesn't conflict with our CSS vars */
+        body { display: flex; overflow: hidden; }
+        section.tab-content { display: none; }
+        section.tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     MANDATORY LOGIN BARRIER
+══════════════════════════════════════════════════ -->
+<div id="loginGateOverlay">
+    <div class="login-card">
+        <!-- Header -->
+        <div class="login-header">
+            <div class="login-emblem">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <div class="login-brand-name">Sentinel C2</div>
+                <div class="login-brand-sub">Border Surveillance Network</div>
+            </div>
+            <div class="login-status-dot">
+                <div class="dot"></div>
+                <span>Grid Active</span>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="login-body">
+            <p class="login-desc">
+                Secure authentication required. All access attempts are recorded to the cryptographic audit ledger.
+            </p>
+
+            <!-- Error -->
+            <div id="loginErrorAlert" class="form-error">
+                <i class="fa-solid fa-circle-xmark" style="flex-shrink:0;"></i>
+                <span id="loginErrorMessage">Invalid credentials.</span>
+            </div>
+
+            <!-- Form -->
+            <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+                <div class="form-group">
+                    <label class="form-label">Operator Callsign</label>
+                    <div class="form-input-wrap has-icon">
+                        <i class="fi-icon fa-solid fa-user"></i>
+                        <input id="loginUsername" type="text" class="form-input" required placeholder="e.g. commander" autocomplete="username">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Security Passkey</label>
+                    <div class="form-input-wrap has-icon">
+                        <i class="fi-icon fa-solid fa-key"></i>
+                        <input id="loginPassword" type="password" class="form-input" required placeholder="••••••••••••" autocomplete="current-password">
+                        <button type="button" class="fi-eye" onclick="togglePasswordVisibility()">
+                            <i id="pwEyeIcon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div style="margin-top: 18px;">
+                    <button type="submit" id="loginSubmitBtn" class="btn-primary">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        Authenticate &amp; Enter C2
+                    </button>
+                </div>
+            </form>
+
+            <!-- Quick presets -->
+            <div class="login-presets">
+                <div class="login-presets-title">Evaluator Quick Access</div>
+                <div class="login-presets-grid">
+                    <button type="button" class="preset-btn" onclick="quickLogin('commander')">
+                        <div class="preset-role">Commander</div>
+                        <div class="preset-name">CDR. Vikram</div>
+                    </button>
+                    <button type="button" class="preset-btn" onclick="quickLogin('operator')">
+                        <div class="preset-role">Operator</div>
+                        <div class="preset-name">OPR. Rajesh</div>
+                    </button>
+                    <button type="button" class="preset-btn" onclick="quickLogin('analyst')">
+                        <div class="preset-role">Analyst</div>
+                        <div class="preset-name">ANL. Priya</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="login-footer">
+            <span><i class="fa-solid fa-fingerprint" style="color: var(--c-ok); margin-right: 5px;"></i>Audit Ledger Active</span>
+            <span>DB: SQLite / AES-256</span>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     LEFT SIDEBAR
+══════════════════════════════════════════════════ -->
+<aside id="sidebarNav">
+    <!-- Brand -->
+    <div class="sidebar-brand">
+        <div class="sidebar-emblem">
+            <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+            <div class="sidebar-brand-name">Sentinel C2</div>
+            <div class="sidebar-brand-version">v2.5 · Border Defense</div>
+        </div>
+    </div>
+
+    <!-- Grid status -->
+    <div class="sidebar-grid-status">
+        <span class="sg-label"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-ok);margin-right:6px;box-shadow:0 0 4px var(--c-ok);"></span>C2 Grid</span>
+        <span class="sg-val">ACTIVE</span>
+    </div>
+
+    <!-- Navigation -->
+    <div class="sidebar-nav-body">
+        <!-- Surveillance -->
+        <div class="nav-section">
+            <div class="nav-section-label">Surveillance</div>
+            <button onclick="switchTab('recon')" id="tabBtn-recon" class="nav-tab-btn active">
+                <i class="fa-solid fa-video"></i>
+                <span>Live Recon</span>
+            </button>
+            <button onclick="switchTab('investigation')" id="tabBtn-investigation" class="nav-tab-btn">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                <span>Historical Search</span>
+            </button>
+            <button onclick="switchTab('anpr')" id="tabBtn-anpr" class="nav-tab-btn">
+                <i class="fa-solid fa-car"></i>
+                <span>Vehicle ANPR</span>
+            </button>
+        </div>
+
+        <!-- Intelligence -->
+        <div class="nav-section">
+            <div class="nav-section-label">Intelligence</div>
+            <button onclick="switchTab('zones')" id="tabBtn-zones" class="nav-tab-btn">
+                <i class="fa-solid fa-draw-polygon"></i>
+                <span>Restricted Zones</span>
+            </button>
+            <button onclick="switchTab('baseline')" id="tabBtn-baseline" class="nav-tab-btn">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Baseline Engine</span>
+            </button>
+            <button onclick="switchTab('assistant')" id="tabBtn-assistant" class="nav-tab-btn">
+                <i class="fa-solid fa-robot"></i>
+                <span>AI Assistant</span>
+            </button>
+        </div>
+
+        <!-- Security -->
+        <div class="nav-section">
+            <div class="nav-section-label">Security</div>
+            <button onclick="switchTab('blockchain')" id="tabBtn-blockchain" class="nav-tab-btn">
+                <i class="fa-solid fa-link"></i>
+                <span>Blockchain Ledger</span>
+            </button>
+            <button onclick="switchTab('audit')" id="tabBtn-audit" class="nav-tab-btn">
+                <i class="fa-solid fa-clipboard-check"></i>
+                <span>Audit &amp; RBAC</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Operator profile card -->
+    <div class="sidebar-profile">
+        <div class="sidebar-profile-card">
+            <div class="sidebar-profile-inner">
+                <div class="sidebar-profile-icon">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div class="sidebar-profile-info">
+                    <div id="userCallsignBadge" class="sidebar-profile-name">CDR. Vikram Singh</div>
+                    <div id="userStationBadge" class="sidebar-profile-station">Northern Frontier C2 HQ</div>
+                </div>
+                <span id="userRoleBadge">COMMANDER</span>
+            </div>
+        </div>
+        <div class="sidebar-actions">
+            <button class="sidebar-action-btn" onclick="openRoleModal()">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                Role
+            </button>
+            <button class="sidebar-action-btn danger" onclick="handleLogout()">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                Logout
+            </button>
+        </div>
+    </div>
+</aside>
+
+
+<!-- ══════════════════════════════════════════════════
+     MAIN WORKSPACE
+══════════════════════════════════════════════════ -->
+<div style="flex:1; display:flex; flex-direction:column; height:100vh; overflow:hidden; background:var(--c-bg);">
+
+    <!-- Top bar -->
+    <header id="mainTopBar">
+        <div class="topbar-left">
+            <!-- Mobile hamburger -->
+            <button onclick="toggleSidebar()" style="display:none;" class="btn btn-ghost btn-sm" id="sidebarToggleBtn">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+
+            <!-- Breadcrumb -->
+            <div id="activeTabTitle" class="topbar-breadcrumb">
+                <i class="fa-solid fa-video"></i> Live C2 Reconnaissance
+            </div>
+
+            <div class="topbar-divider"></div>
+
+            <!-- Active camera -->
+            <span id="activeCameraLabel" class="topbar-camera-label">CAM-0: Zero-Line North</span>
+            <span id="currentCameraLabel" style="display:none;">CAM-0: Zero-Line North</span>
+        </div>
+
+        <div class="topbar-right">
+            <!-- Source badge -->
+            <span id="currentSourceBadge" class="topbar-chip">SRC: AUTO</span>
+
+            <!-- Edge compute -->
+            <div class="topbar-chip">
+                <span class="chip-dot"></span>
+                <span id="edgeComputePill">CPU: --% | RAM: --%</span>
+            </div>
+
+            <!-- FPS -->
+            <div class="topbar-chip">
+                <i class="fa-solid fa-gauge" style="color:var(--c-text-4); font-size:10px;"></i>
+                <span id="fpsCounter">-- FPS</span>
+            </div>
+
+            <!-- Threat status -->
+            <div id="threatBadge">
+                <span class="threat-dot"></span>
+                <span id="threatStatusText">CLEAR</span>
+            </div>
+
+            <!-- Clock -->
+            <span id="liveClock" class="topbar-clock">--:--:--</span>
+        </div>
+    </header>
+
+    <!-- Main scrollable content -->
+    <main style="flex:1; padding:18px 20px; overflow-y:auto; display:flex; flex-direction:column; gap:14px;">
+
+        <!-- ══ TAB 1: LIVE RECON ══ -->
+        <section id="tab-recon" class="tab-content active" style="display:grid; grid-template-columns: 1fr; gap:14px;">
+            <div style="display:grid; grid-template-columns: 1fr; gap:14px;">
+                <!-- Camera switcher row -->
+                <div class="card" style="padding:12px 14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <span style="font-size:10px; font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--c-text-4); letter-spacing:0.08em; text-transform:uppercase; flex-shrink:0;">
+                            <i class="fa-solid fa-satellite-dish" style="margin-right:5px; color:var(--c-text-4);"></i>Camera Nodes
+                        </span>
+                        <div id="cameraGridButtons" class="cam-strip">
+                            <button onclick="switchCamera('cam_0')" id="camBtn-cam_0" class="cam-btn active" title="Video 1: Zero-Line North Outpost">
+                                <span class="dot"></span> CAM-0: Zero-Line
+                            </button>
+                            <button onclick="switchCamera('cam_1')" id="camBtn-cam_1" class="cam-btn" title="Video 2: Sector B Perimeter Crossing (1080p)">
+                                <span class="dot"></span> CAM-1: Sector B (Video 2)
+                            </button>
+                            <button onclick="switchCamera('cam_2')" id="camBtn-cam_2" class="cam-btn" title="Video 1: Riverine Crossing Checkpoint">
+                                <span class="dot"></span> CAM-2: Riverine
+                            </button>
+                            <button onclick="switchCamera('cam_3')" id="camBtn-cam_3" class="cam-btn" title="Video 2: Ammunition Depot Gate HD">
+                                <span class="dot"></span> CAM-3: Depot Gate (HD)
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <select id="sourceSelect" onchange="changeVideoSource()" class="field-input" style="width:auto; font-size:11px; padding:5px 10px;">
+                            <option value="sample">Sample Video 1 (Zero-Line)</option>
+                            <option value="sample_2">Sample Video 2 (Sector B 1080p)</option>
+                            <option value="webcam">Live Webcam (0)</option>
+                        </select>
+                        <button onclick="toggleStreamPause()" id="pauseBtn" class="btn btn-sm">
+                            <i class="fa-solid fa-pause"></i> Pause
+                        </button>
+                        <button onclick="reloadStreamImage()" class="btn btn-sm">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main grid: video + alerts -->
+                <div style="display:grid; grid-template-columns: 1fr 320px; gap:14px;">
+                    <!-- Video panel -->
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                        <div class="video-panel">
+                            <img id="liveFeedImg" src="" alt="Awaiting authentication...">
+                            <div class="video-hud-tl">
+                                <span class="video-badge live">
+                                    <span class="dot"></span> LIVE
+                                </span>
+                                <span id="currentSourceBadge" class="video-badge">SRC: AUTO</span>
+                            </div>
+                            <div class="video-hud-tr">
+                                <span class="video-badge">
+                                    <i class="fa-solid fa-microchip" style="font-size:9px;"></i> YOLOv8 · BYTETracker
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Detection capability chips -->
+                        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+                            <div class="detect-cap">
+                                <div class="detect-cap-label"><i class="fa-solid fa-person-walking"></i> Tripwire</div>
+                                <div class="detect-cap-desc">Virtual boundary crossing detection.</div>
+                            </div>
+                            <div class="detect-cap">
+                                <div class="detect-cap-label"><i class="fa-solid fa-person-praying"></i> Crawling</div>
+                                <div class="detect-cap-desc">Aspect ratio analysis for prone intruders.</div>
+                            </div>
+                            <div class="detect-cap">
+                                <div class="detect-cap-label"><i class="fa-solid fa-stopwatch"></i> Loitering</div>
+                                <div class="detect-cap-desc">Prolonged-presence anomaly detection.</div>
+                            </div>
+                            <div class="detect-cap">
+                                <div class="detect-cap-label"><i class="fa-solid fa-border-all"></i> Tampering</div>
+                                <div class="detect-cap-desc">Optical flow fence agitation alert.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right panel: stats + live alerts -->
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <!-- Stat cards -->
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <div class="stat-card">
+                                <div class="stat-label">Active Threats</div>
+                                <div id="statActiveThreats" class="stat-value alert">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Total Alerts</div>
+                                <div id="statTotalAlerts" class="stat-value">0</div>
+                            </div>
+                        </div>
+
+                        <!-- Live alert stream -->
+                        <div class="card" style="flex:1; display:flex; flex-direction:column; min-height:380px;">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <i class="fa-solid fa-tower-broadcast"></i>
+                                    Live Intercepts
+                                </div>
+                                <span style="display:flex; align-items:center; gap:5px; font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-ok);">
+                                    <span style="width:5px;height:5px;border-radius:50%;background:var(--c-ok);display:inline-block;"></span>
+                                    Online
+                                </span>
+                            </div>
+                            <div id="liveAlertList" style="flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px;">
+                                <div style="text-align:center; padding:32px 0; color:var(--c-text-4); font-size:11px; font-family:'JetBrains Mono',monospace;">
+                                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size:16px; display:block; margin-bottom:8px;"></i>
+                                    Awaiting sensor detections...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 2: HISTORICAL INVESTIGATION ══ -->
+        <section id="tab-investigation" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+
+            <!-- Filter panel -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i>
+                        Historical Incident Search
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="searchHistoricalIncidents()" class="btn btn-accent btn-sm">
+                            <i class="fa-solid fa-filter"></i> Apply Filters
+                        </button>
+                        <button onclick="resetHistoricalFilters()" class="btn btn-sm">
+                            <i class="fa-solid fa-arrows-rotate"></i> Reset
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" style="display:grid; grid-template-columns: repeat(6,1fr); gap:12px;">
+                    <div>
+                        <label class="field-label">Keyword</label>
+                        <input id="histSearchQuery" type="text" class="field-input" placeholder="e.g. crossing...">
+                    </div>
+                    <div>
+                        <label class="field-label">Sector</label>
+                        <select id="histCameraSelect" class="field-input">
+                            <option value="all">All Sectors</option>
+                            <option value="cam_0">CAM-0: Zero-Line</option>
+                            <option value="cam_1">CAM-1: Sector B</option>
+                            <option value="cam_2">CAM-2: Riverine</option>
+                            <option value="cam_3">CAM-3: Depot</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label">Threat Type</label>
+                        <select id="histThreatTypeSelect" class="field-input">
+                            <option value="all">All Types</option>
+                            <option value="border_crossing">Border Crossing</option>
+                            <option value="intrusion">Zone Intrusion</option>
+                            <option value="watchlist_vehicle">Watchlist Vehicle</option>
+                            <option value="crawling">Prone / Crawling</option>
+                            <option value="loitering">Loitering</option>
+                            <option value="fence_tampering">Fence Tampering</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label">Status</label>
+                        <select id="histStatusSelect" class="field-input">
+                            <option value="all">All</option>
+                            <option value="open">Open</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="dismissed">Dismissed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label">Plate Search</label>
+                        <input id="histPlateSearch" type="text" class="field-input" placeholder="DL01AB1234" style="text-transform:uppercase;">
+                    </div>
+                    <div>
+                        <label class="field-label">Min Score: <span id="histRiskScoreLabel" style="color:var(--c-accent);">0</span></label>
+                        <input id="histMinRiskSlider" type="range" min="0" max="100" value="0" step="5" oninput="document.getElementById('histRiskScoreLabel').textContent=this.value" style="width:100%; margin-top:8px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results table -->
+            <div class="card" style="overflow:hidden;">
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Timestamp</th>
+                                <th>Sector</th>
+                                <th>Threat Classification</th>
+                                <th>Vehicle Plate</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidentsTableBody">
+                            <tr><td colspan="8" style="text-align:center; padding:28px; color:var(--c-text-4);">Loading incident data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 3: ANPR & WATCHLIST ══ -->
+        <section id="tab-anpr" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+
+            <!-- Header -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-car"></i>
+                        ANPR — Automatic Number Plate Recognition
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="openWatchlistModal()" class="btn btn-danger btn-sm">
+                            <i class="fa-solid fa-plus"></i> Flag Vehicle
+                        </button>
+                        <button onclick="loadAnprData()" class="btn btn-sm">
+                            <i class="fa-solid fa-rotate"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Plate lookup -->
+                <div class="card-body" style="border-top:1px solid var(--c-border);">
+                    <div class="section-label">License Plate Intelligence Lookup</div>
+                    <div style="display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap;">
+                        <input id="anprLookupInput" type="text" class="field-input" placeholder="Enter plate number (e.g. DL01AB1234)" style="width:300px; text-transform:uppercase;">
+                        <button onclick="lookupPlateIntelligence()" class="btn btn-sm">
+                            <i class="fa-solid fa-crosshairs"></i> Run Query
+                        </button>
+                    </div>
+                    <div id="anprLookupResult" class="hidden" style="margin-top:10px; padding:12px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--radius); font-size:11px; font-family:'JetBrains Mono',monospace;"></div>
+                </div>
+            </div>
+
+            <!-- Tables -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+                <!-- Sightings -->
+                <div class="card" style="overflow:hidden;">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Recent Plate Sightings
+                        </div>
+                        <span id="anprPlateCountBadge" style="font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-text-3);">0 records</span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead><tr>
+                                <th>Plate</th>
+                                <th>Type</th>
+                                <th>Sector</th>
+                                <th>Watchlist</th>
+                                <th>Time</th>
+                            </tr></thead>
+                            <tbody id="anprPlatesTableBody">
+                                <tr><td colspan="5" style="text-align:center; padding:24px; color:var(--c-text-4);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Watchlist -->
+                <div class="card" style="overflow:hidden;">
+                    <div class="card-header">
+                        <div class="card-title" style="color:var(--c-text-1);">
+                            <i class="fa-solid fa-triangle-exclamation" style="color:var(--c-alert);"></i> Threat Watchlist (BOLO)
+                        </div>
+                        <span class="badge badge-alert">INTERCEPT ACTIVE</span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead><tr>
+                                <th>Flagged Plate</th>
+                                <th>Intel Reason</th>
+                                <th>Threat</th>
+                                <th>Agency</th>
+                            </tr></thead>
+                            <tbody id="anprWatchlistTableBody">
+                                <tr><td colspan="4" style="text-align:center; padding:24px; color:var(--c-text-4);">Loading watchlist...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 4: RESTRICTED ZONES STUDIO ══ -->
+        <section id="tab-zones" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-draw-polygon"></i> Restricted Zone Drawing Studio
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <span id="zoneCoordDisplay" style="font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-text-3); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--radius-sm); padding:4px 9px;">Cursor: (—, —)</span>
+                        <span id="zoneVertexCounter" style="font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-accent); background:var(--c-surface-2); border:1px solid var(--c-border-md); border-radius:var(--radius-sm); padding:4px 9px;">Vertices: 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 280px; gap:14px;">
+                <!-- Canvas area -->
+                <div class="card" style="display:flex; flex-direction:column;">
+                    <div class="card-header">
+                        <div style="display:flex; align-items:center; gap:8px; font-size:11px; color:var(--c-text-2);">
+                            <span style="width:6px;height:6px;border-radius:50%;background:var(--c-ok);"></span>
+                            Interactive Canvas · Click to place vertices
+                        </div>
+                        <div style="display:flex; gap:5px;">
+                            <button onclick="undoZonePoint()" class="btn btn-sm"><i class="fa-solid fa-arrow-rotate-left"></i> Undo</button>
+                            <button onclick="clearZoneCanvas()" class="btn btn-sm btn-danger"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:0; flex:1; position:relative; background:#000; min-height:400px;">
+                        <img id="zoneStreamBg" src="/api/video_feed" alt="" style="width:100%; height:auto; max-height:520px; object-fit:contain; pointer-events:none; opacity:0.85; display:block;">
+                        <canvas id="zoneDrawingCanvas" width="640" height="480"
+                            style="position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;z-index:10;"
+                            onmousemove="handleZoneMouseMove(event)" onclick="handleZoneCanvasClick(event)">
+                        </canvas>
+                    </div>
+                    <div style="padding:10px 14px; border-top:1px solid var(--c-border); display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <span style="font-size:10px; color:var(--c-text-4); font-family:'JetBrains Mono',monospace;">Presets:</span>
+                        <button onclick="applyZonePreset('border_strip')" class="btn btn-sm">Zero-Line Buffer</button>
+                        <button onclick="applyZonePreset('outpost_box')" class="btn btn-sm">Outpost Perimeter</button>
+                        <button onclick="applyZonePreset('fence_boundary')" class="btn btn-sm">Fence Corridor</button>
+                    </div>
+                </div>
+
+                <!-- Zone controls -->
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div class="card">
+                        <div class="card-header"><div class="card-title"><i class="fa-solid fa-floppy-disk"></i> Save Zone</div></div>
+                        <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
+                            <div>
+                                <label class="field-label">Camera ID</label>
+                                <input id="zoneCamera" value="cam_0" class="field-input">
+                            </div>
+                            <div>
+                                <label class="field-label">Zone Name</label>
+                                <input id="zoneName" placeholder="e.g. Forward Buffer Alpha" class="field-input">
+                            </div>
+                            <div>
+                                <label class="field-label">Coordinates</label>
+                                <input id="zonePoints" readonly placeholder="Click canvas to plot..." class="field-input" style="color:var(--c-text-3);">
+                            </div>
+                            <button onclick="saveDrawnZone()" class="btn btn-accent" style="width:100%; justify-content:center;">
+                                <i class="fa-solid fa-check"></i> Commit to AI Engine
+                            </button>
+                            <div id="zoneMsg" class="hidden" style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-ok);"></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="flex:1;">
+                        <div class="card-header">
+                            <div class="card-title"><i class="fa-solid fa-list-check"></i> Active Zones</div>
+                            <button onclick="loadZones()" class="btn btn-ghost btn-sm"><i class="fa-solid fa-rotate"></i></button>
+                        </div>
+                        <div id="zonesListContainer" style="padding:10px; overflow-y:auto; max-height:250px; font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-text-3);">
+                            <div style="text-align:center; padding:20px; color:var(--c-text-4);">Loading zones...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 5: BASELINE ENGINE ══ -->
+        <section id="tab-baseline" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-chart-line"></i>
+                        Behavioral Baseline Engine
+                        <span class="badge badge-neutral" style="margin-left:4px;">INNOVATION 1</span>
+                    </div>
+                </div>
+                <div class="card-body" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input id="baselineCamera" placeholder="Camera ID (e.g. cam_0)" class="field-input" style="width:240px;">
+                    <button onclick="loadBaseline()" class="btn btn-sm"><i class="fa-solid fa-magnifying-glass-chart"></i> Load Baseline</button>
+                    <button onclick="seedBaseline()" class="btn btn-warn btn-sm"><i class="fa-solid fa-seedling"></i> Seed Demo</button>
+                </div>
+            </div>
+
+            <div id="recalibrationSummary" class="card hidden">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-rotate"></i> Operator Feedback Recalibration</div>
+                </div>
+                <div id="recalibrationContent" class="card-body" style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-text-2);"></div>
+            </div>
+
+            <div class="card" style="overflow:hidden;">
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Hour</th>
+                            <th>Day Type</th>
+                            <th>Avg Persons</th>
+                            <th>Avg Vehicles</th>
+                            <th>Dwell (s)</th>
+                            <th>Zone Entries/hr</th>
+                            <th>Samples</th>
+                            <th>Dismissed FPs</th>
+                        </tr></thead>
+                        <tbody id="baselineTableBody">
+                            <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--c-text-4);">Enter a Camera ID above and click Load Baseline</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 6: AI ASSISTANT ══ -->
+        <section id="tab-assistant" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-robot"></i>
+                        AI Investigation Assistant
+                        <span class="badge badge-neutral">GROUNDED TO SQL DB</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p style="font-size:12px; color:var(--c-text-3); margin:0;">Answers queries and generates structured incident narratives using logged telemetry data.</p>
+                </div>
+            </div>
+
+            <!-- Sync status -->
+            <div id="syncStatusBanner" class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-satellite-dish"></i>
+                        Bandwidth-Aware Sync Status
+                        <span class="badge badge-neutral">INNOVATION 2</span>
+                    </div>
+                </div>
+                <div id="syncStatusContent" class="card-body" style="display:flex; flex-wrap:wrap; gap:16px; font-size:11px; font-family:'JetBrains Mono',monospace; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:6px;"><span style="width:5px;height:5px;border-radius:50%;background:var(--c-warn);display:inline-block;"></span><span style="color:var(--c-text-3);">Metadata Only:</span> <span id="syncMetaOnly" style="color:var(--c-warn); font-weight:600;">--</span></div>
+                    <div style="display:flex; align-items:center; gap:6px;"><span style="width:5px;height:5px;border-radius:50%;background:var(--c-ok);display:inline-block;"></span><span style="color:var(--c-text-3);">Full Synced:</span> <span id="syncFullSynced" style="color:var(--c-ok); font-weight:600;">--</span></div>
+                    <div style="display:flex; align-items:center; gap:6px;"><span style="color:var(--c-text-3);">Total Evidence:</span> <span id="syncTotal" style="color:var(--c-text-1); font-weight:600;">--</span></div>
+                    <div style="display:flex; align-items:center; gap:6px;"><span style="width:5px;height:5px;border-radius:50%;background:var(--c-alert);display:inline-block;"></span><span style="color:var(--c-text-3);">Pending Queue:</span> <span id="syncQueue" style="color:var(--c-alert); font-weight:600;">--</span></div>
+                    <button onclick="togglePoorConnectivity()" id="poorConnBtn" class="btn btn-danger btn-sm" style="margin-left:auto;">
+                        <i class="fa-solid fa-wifi"></i> Simulate Poor Connectivity
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat -->
+            <div class="card" style="display:flex; flex-direction:column; height:400px;">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-comments"></i> Intelligence Q&amp;A</div>
+                </div>
+                <div id="chatMessages" style="flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; font-size:12px;">
+                    <div style="display:flex; gap:10px;">
+                        <div style="width:26px;height:26px;border-radius:var(--radius);background:var(--c-surface-3);border:1px solid var(--c-border-md);display:flex;align-items:center;justify-content:center;color:var(--c-text-2);font-size:11px;flex-shrink:0;">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div style="background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--radius);padding:10px 13px;color:var(--c-text-2);max-width:480px;">
+                            Assistant ready. Ask questions regarding recorded alerts, zone intrusions, or request drafted incident summaries.
+                            <div style="color:var(--c-text-4);font-size:10px;margin-top:4px;font-family:'JetBrains Mono',monospace;">"How many alerts today?" · "Draft report for alert 1" · "List recent intrusions"</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="border-top:1px solid var(--c-border); padding:10px 12px; display:flex; gap:8px;">
+                    <input id="assistantInput" type="text" placeholder="Ask the intelligence assistant..." onkeydown="if(event.key==='Enter') sendQuery()" class="field-input" style="flex:1;">
+                    <button onclick="sendQuery()" class="btn btn-accent btn-sm"><i class="fa-solid fa-paper-plane"></i> Send</button>
+                </div>
+            </div>
+
+            <!-- Report drafting -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-file-lines"></i> Auto-Draft Incident Report</div>
+                </div>
+                <div class="card-body" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input id="reportAlertId" type="number" placeholder="Alert ID" class="field-input" style="width:140px;">
+                    <button onclick="draftReport()" class="btn btn-warn btn-sm"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Report</button>
+                </div>
+                <pre id="reportOutput" class="hidden" style="margin:0;padding:12px 14px;border-top:1px solid var(--c-border);background:var(--c-surface-2);color:var(--c-text-2);font-size:11px;font-family:'JetBrains Mono',monospace;white-space:pre-wrap;max-height:240px;overflow-y:auto;"></pre>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 7: BLOCKCHAIN LEDGER ══ -->
+        <section id="tab-blockchain" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-link"></i>
+                        Cryptographic Evidence Ledger
+                        <span class="badge badge-ok">TAMPER-EVIDENT</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p style="font-size:12px; color:var(--c-text-3); margin:0;">Every incident and operator action is hash-chained with SHA-256 Proof-of-Work. Any database modification is immediately flagged.</p>
+                </div>
+            </div>
+
+            <!-- Status cards -->
+            <div id="chainStatusCards" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+                <div class="stat-card">
+                    <div class="stat-label">Chain Length</div>
+                    <div id="chainLength" class="stat-value">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Integrity</div>
+                    <div id="chainIntegrity" class="stat-value" style="font-size:16px;">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Alert Blocks</div>
+                    <div id="chainAlerts" class="stat-value">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Audit Records</div>
+                    <div id="chainAudits" class="stat-value">--</div>
+                </div>
+            </div>
+
+            <!-- Latest hash -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-hashtag"></i> Latest Block Hash</div>
+                </div>
+                <div class="card-body" style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-ok); word-break:break-all;" id="chainLastHash">--</div>
+            </div>
+
+            <!-- Controls -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <button onclick="loadBlockchain()" class="btn btn-sm"><i class="fa-solid fa-rotate"></i> Refresh Chain</button>
+                <button onclick="verifyChain()" class="btn btn-ok btn-sm"><i class="fa-solid fa-shield-halved"></i> Full Audit</button>
+                <button onclick="commitAllAlerts()" class="btn btn-sm"><i class="fa-solid fa-upload"></i> Commit Pending</button>
+                <button onclick="resetBlockchain()" class="btn btn-danger btn-sm"><i class="fa-solid fa-rotate-left"></i> Reset Ledger</button>
+                <div style="margin-left:auto; display:flex; gap:6px; align-items:center;">
+                    <input id="verifyAlertId" type="number" placeholder="Alert ID" class="field-input" style="width:120px;">
+                    <button onclick="verifyAlert()" class="btn btn-sm"><i class="fa-solid fa-magnifying-glass"></i> Verify Record</button>
+                </div>
+            </div>
+
+            <!-- Tamper demo -->
+            <div class="card" style="border-color:rgba(200,154,62,0.25);">
+                <div class="card-header">
+                    <div class="card-title" style="color:var(--c-warn);">
+                        <i class="fa-solid fa-shield-virus"></i>
+                        Tamper Defense Demonstration
+                        <span class="badge badge-warn">SIH LIVE VERIFY</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p style="font-size:12px; color:var(--c-text-3); margin:0 0 12px;">Simulate an adversary modifying logged incident rows. The hash chain catches unauthorized modifications instantly.</p>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                        <input id="tamperAlertId" type="number" placeholder="Alert ID" class="field-input" style="width:120px;">
+                        <button onclick="simulateTamper()" class="btn btn-danger btn-sm"><i class="fa-solid fa-user-secret"></i> Simulate DB Attack</button>
+                        <button onclick="restoreTamper()" class="btn btn-ok btn-sm"><i class="fa-solid fa-rotate-left"></i> Restore Record</button>
+                        <span id="tamperDemoStatus" style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-text-3);"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verify result -->
+            <div id="verifyResult" class="hidden card" style="font-size:11px; font-family:'JetBrains Mono',monospace; padding:14px 16px;"></div>
+
+            <!-- Block explorer -->
+            <div class="card" style="overflow:hidden;">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-cubes"></i> Block Explorer</div>
+                    <span style="font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-text-3);">PoW Difficulty: 3 Zeroes</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Block</th>
+                            <th>Type</th>
+                            <th>Record ID</th>
+                            <th>Payload SHA-256</th>
+                            <th>PoW Hash</th>
+                            <th>Nonce</th>
+                            <th>Timestamp</th>
+                        </tr></thead>
+                        <tbody id="blockchainLedgerBody">
+                            <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--c-text-4);">Click "Refresh Chain" to view records</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ══ TAB 8: AUDIT & RBAC ══ -->
+        <section id="tab-audit" class="tab-content hidden" style="display:none; flex-direction:column; gap:14px;">
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-clipboard-check"></i>
+                        Immutable Audit Trail &amp; RBAC
+                        <span class="badge badge-neutral">MILITARY-GRADE</span>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="loadAuditLogs()" class="btn btn-sm"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        <button onclick="openRoleModal()" class="btn btn-sm"><i class="fa-solid fa-user-shield"></i> Switch Role</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary cards -->
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px;">
+                <div class="card">
+                    <div class="card-header"><div class="card-title"><i class="fa-solid fa-id-badge"></i> Active Session</div></div>
+                    <div class="card-body" style="display:flex; flex-direction:column; gap:8px; font-size:11px; font-family:'JetBrains Mono',monospace;">
+                        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--c-border);">
+                            <span style="color:var(--c-text-3);">Callsign:</span>
+                            <span id="auditCallsign" style="color:var(--c-text-1); font-weight:600;">COMMANDER-01</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--c-border);">
+                            <span style="color:var(--c-text-3);">Clearance:</span>
+                            <span id="auditClearance" class="badge badge-neutral">COMMANDER</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--c-border);">
+                            <span style="color:var(--c-text-3);">Token Auth:</span>
+                            <span style="color:var(--c-ok); font-weight:600;"><i class="fa-solid fa-shield-check"></i> HMAC-SHA256</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:6px 0;">
+                            <span style="color:var(--c-text-3);">Permissions:</span>
+                            <span style="color:var(--c-text-2); font-size:10px;">ALL_CLEARANCE</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><div class="card-title"><i class="fa-solid fa-users-gear"></i> Role Matrix</div></div>
+                    <div class="card-body" style="display:flex; flex-direction:column; gap:6px; font-size:11px; font-family:'JetBrains Mono',monospace;">
+                        <div style="padding:8px 10px; border-radius:var(--radius); background:var(--c-surface-2); border:1px solid var(--c-border);">
+                            <span style="font-weight:700; color:var(--c-accent);">COMMANDER:</span> <span style="color:var(--c-text-3);">Full authority — Zone edits, Threat triage, Watchlist, Recalibration.</span>
+                        </div>
+                        <div style="padding:8px 10px; border-radius:var(--radius); background:var(--c-surface-2); border:1px solid var(--c-border);">
+                            <span style="font-weight:700; color:var(--c-warn);">OPERATOR:</span> <span style="color:var(--c-text-3);">Live monitoring, Alert ack, Camera switching.</span>
+                        </div>
+                        <div style="padding:8px 10px; border-radius:var(--radius); background:var(--c-surface-2); border:1px solid var(--c-border);">
+                            <span style="font-weight:700; color:var(--c-text-2);">ANALYST:</span> <span style="color:var(--c-text-3);">Read-only forensics, Evidence export, Blockchain audit.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><div class="card-title"><i class="fa-solid fa-server"></i> Edge Compute Node</div></div>
+                    <div class="card-body" style="display:flex; flex-direction:column; gap:8px; font-size:11px; font-family:'JetBrains Mono',monospace;">
+                        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--c-border);">
+                            <span style="color:var(--c-text-3);">Active Node:</span>
+                            <span id="auditEdgeNode" style="color:var(--c-text-2);">OUTPOST-EDGE-ALPHA</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--c-border);">
+                            <span style="color:var(--c-text-3);">Inference:</span>
+                            <span id="auditInferenceDevice" style="color:var(--c-ok);">NVIDIA CUDA FP16</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--c-border);">
+                            <span style="color:var(--c-text-3);">Camera Streams:</span>
+                            <span id="auditMultiCamCount" style="color:var(--c-text-2);">4 Synchronized</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; padding:6px 0;">
+                            <span style="color:var(--c-text-3);">Pipeline Latency:</span>
+                            <span id="auditLatency" style="color:var(--c-text-2);">~18ms</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit log table -->
+            <div class="card" style="overflow:hidden;">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-list-check"></i> System Action Ledger</div>
+                    <input id="auditFilterQuery" placeholder="Filter by user, action, or target..." oninput="filterAuditLogs()" class="field-input field-input-sm" style="width:260px;">
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Timestamp</th>
+                            <th>Callsign</th>
+                            <th>Role</th>
+                            <th>Action</th>
+                            <th>Resource</th>
+                            <th>IP</th>
+                            <th>Details</th>
+                        </tr></thead>
+                        <tbody id="auditLogsTableBody">
+                            <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--c-text-4);">Loading audit records...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div><!-- end main workspace -->
+
+
+<!-- ════════════════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════════════════ -->
+
+<!-- Snapshot Evidence Modal -->
+<div id="snapshotModal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:700px;">
+        <div class="modal-header">
+            <div class="modal-title"><i class="fa-solid fa-camera"></i> Forensic Snapshot Evidence</div>
+            <button class="modal-close" onclick="closeSnapshotModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <div style="border-radius:var(--radius); overflow:hidden; border:1px solid var(--c-border); background:#000; margin-bottom:12px;">
+                <img id="modalSnapshotImg" src="" alt="Incident Snapshot" style="width:100%; height:auto; object-fit:contain; max-height:420px; display:block;">
+            </div>
+            <div id="modalSnapshotMeta" style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-text-2); background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--radius); padding:10px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeSnapshotModal()" class="btn btn-sm">Close</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Investigation Dossier Modal -->
+<div id="investigationModal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:900px; max-height:90vh; overflow-y:auto;">
+        <div class="modal-header" style="position:sticky; top:0; z-index:20; background:var(--c-surface-1);">
+            <div class="modal-title">
+                <i class="fa-solid fa-file-shield"></i>
+                Forensic Incident Dossier
+                <span id="invModalAlertId" style="color:var(--c-text-3); font-size:11px; font-family:'JetBrains Mono',monospace;">#--</span>
+                <span id="invModalTimestamp" style="color:var(--c-text-4); font-size:10px; font-family:'JetBrains Mono',monospace; font-weight:400;"></span>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <button onclick="printCurrentDossier()" class="btn btn-accent btn-sm"><i class="fa-solid fa-print"></i> Print Dossier</button>
+                <button class="modal-close" onclick="closeInvestigationModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+
+        <div class="modal-body">
+            <!-- Top status row -->
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px;">
+                <div class="stat-card" style="padding:12px;">
+                    <div class="stat-label">Threat Severity</div>
+                    <div id="invModalSeverity" class="stat-value alert" style="font-size:18px;">CRITICAL</div>
+                </div>
+                <div class="stat-card" style="padding:12px;">
+                    <div class="stat-label">Risk Score</div>
+                    <div id="invModalRiskScore" class="stat-value" style="font-size:18px; color:var(--c-warn);">0 / 100</div>
+                </div>
+                <div class="stat-card" style="padding:12px;">
+                    <div class="stat-label">Sector</div>
+                    <div id="invModalLocation" class="stat-value" style="font-size:14px; font-weight:600;">--</div>
+                </div>
+                <div class="stat-card" style="padding:12px;">
+                    <div class="stat-label">Chain Seal</div>
+                    <div id="invModalChainSeal" style="font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-ok); font-weight:600; margin-top:4px;">--</div>
+                </div>
+            </div>
+
+            <!-- Evidence + explainability -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+                <!-- Left: snapshot + telemetry -->
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div class="card" style="overflow:hidden;">
+                        <div class="card-header"><div class="card-title"><i class="fa-solid fa-camera"></i> Evidence Capture</div></div>
+                        <div style="background:#000; min-height:180px; display:flex; align-items:center; justify-content:center;">
+                            <img id="invModalImg" src="" alt="Evidence Frame" style="width:100%; height:auto; object-fit:contain; display:block;">
+                        </div>
+                        <div id="invModalPlateTag" class="hidden" style="padding:10px 14px; border-top:1px solid var(--c-border); font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-text-2);"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><div class="card-title"><i class="fa-solid fa-crosshairs"></i> Target Telemetry</div></div>
+                        <div class="card-body" style="display:flex; flex-direction:column; gap:6px; font-size:11px; font-family:'JetBrains Mono',monospace;">
+                            <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--c-border);">
+                                <span style="color:var(--c-text-3);">Track ID:</span>
+                                <span id="invModalTrackId" style="color:var(--c-text-1);">#--</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--c-border);">
+                                <span style="color:var(--c-text-3);">Classification:</span>
+                                <span id="invModalClass" style="color:var(--c-text-1);">Person</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--c-border);">
+                                <span style="color:var(--c-text-3);">Violations:</span>
+                                <span id="invModalViolations" style="color:var(--c-alert);">--</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; padding:5px 0;">
+                                <span style="color:var(--c-text-3);">Dwell Time:</span>
+                                <span id="invModalDwell" style="color:var(--c-warn);">-- s</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: risk breakdown + reasoning + hash -->
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div class="card">
+                        <div class="card-header"><div class="card-title"><i class="fa-solid fa-calculator"></i> Mathematical Risk Breakdown</div></div>
+                        <div id="invModalExplainFormula" class="card-body" style="display:flex; flex-direction:column; gap:7px; font-size:11px; font-family:'JetBrains Mono',monospace;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--radius);">
+                                <span style="color:var(--c-text-3);">Deterministic Rule Score:</span>
+                                <span id="invModalRuleScore" style="color:var(--c-text-1); font-weight:700;">--</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--radius);">
+                                <span style="color:var(--c-text-3);">Behavioral Anomaly:</span>
+                                <span id="invModalAnomalyScore" style="color:var(--c-warn); font-weight:700;">--</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--c-surface-2); border:1px solid var(--c-border); border-radius:var(--radius);">
+                                <span style="color:var(--c-text-3);">Multimodal Fusion Bonus:</span>
+                                <span id="invModalFusionBonus" style="color:var(--c-alert); font-weight:700;">--</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--c-surface-3); border:1px solid var(--c-border-md); border-radius:var(--radius);">
+                                <span style="color:var(--c-text-1); font-weight:700;">Total Composite Risk:</span>
+                                <span id="invModalCompositeScore" style="color:var(--c-ok); font-weight:700; font-size:13px;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><div class="card-title"><i class="fa-solid fa-brain"></i> AI Tactical Reasoning</div></div>
+                        <div class="card-body">
+                            <ul id="invModalReasoningList" style="margin:0; padding-left:16px; font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--c-text-2); display:flex; flex-direction:column; gap:5px;">
+                                <li>Loading rationale...</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><div class="card-title"><i class="fa-solid fa-lock"></i> SHA-256 Digest</div></div>
+                        <div class="card-body" style="font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-ok); word-break:break-all; background:var(--c-surface-2); border-radius:var(--radius); padding:10px;" id="invModalShaHash">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <span style="font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--c-text-4);">Official Dossier · Admissible for Border Security Review</span>
+            <div style="display:flex; gap:6px;">
+                <button onclick="downloadJsonDossier()" class="btn btn-sm"><i class="fa-solid fa-download"></i> JSON</button>
+                <button onclick="closeInvestigationModal()" class="btn btn-sm">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Role Modal -->
+<div id="roleModal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:440px;">
+        <div class="modal-header">
+            <div class="modal-title"><i class="fa-solid fa-user-shield"></i> Switch Clearance Role</div>
+            <button class="modal-close" onclick="closeRoleModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:12px; color:var(--c-text-3); margin:0 0 14px;">Select a role to simulate RBAC authorization restrictions:</p>
+            <div onclick="selectRole('COMMANDER')" id="roleCard-COMMANDER" class="role-card selected">
+                <div>
+                    <div class="role-card-name"><i class="fa-solid fa-shield-halved" style="margin-right:7px;"></i>COMMANDER</div>
+                    <div class="role-card-desc">Full system clearance — all actions and triage.</div>
+                </div>
+                <span class="badge badge-neutral">ACTIVE</span>
+            </div>
+            <div onclick="selectRole('OPERATOR')" id="roleCard-OPERATOR" class="role-card">
+                <div>
+                    <div class="role-card-name"><i class="fa-solid fa-binoculars" style="margin-right:7px;"></i>OPERATOR</div>
+                    <div class="role-card-desc">Live monitoring, alert acknowledgment, camera switch.</div>
+                </div>
+                <span class="badge badge-neutral">SELECT</span>
+            </div>
+            <div onclick="selectRole('ANALYST')" id="roleCard-ANALYST" class="role-card">
+                <div>
+                    <div class="role-card-name"><i class="fa-solid fa-magnifying-glass-chart" style="margin-right:7px;"></i>ANALYST</div>
+                    <div class="role-card-desc">Read-only investigation, evidence export, audit review.</div>
+                </div>
+                <span class="badge badge-neutral">SELECT</span>
+            </div>
+            <div style="margin-top:14px;">
+                <label class="field-label">Operator Callsign</label>
+                <input id="roleCallsignInput" value="COMMANDER-01" class="field-input">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeRoleModal()" class="btn btn-sm">Cancel</button>
+            <button onclick="commitRoleSwitch()" class="btn btn-accent btn-sm">Apply Clearance</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Watchlist Modal -->
+<div id="watchlistModal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:440px;">
+        <div class="modal-header">
+            <div class="modal-title"><i class="fa-solid fa-car-burst"></i> Flag Vehicle — Threat Watchlist</div>
+            <button class="modal-close" onclick="closeWatchlistModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+                <label class="field-label">License Plate Number</label>
+                <input id="wlPlateNumber" placeholder="e.g. DL01AB1234" class="field-input" style="text-transform:uppercase; font-weight:700;">
+            </div>
+            <div>
+                <label class="field-label">Vehicle Classification</label>
+                <select id="wlVehicleType" class="field-input">
+                    <option value="Car">Passenger Car / Sedan</option>
+                    <option value="Truck">Heavy Transport Truck</option>
+                    <option value="Van">Cargo Van / Minibus</option>
+                    <option value="Motorcycle">Motorcycle / 2-Wheeler</option>
+                </select>
+            </div>
+            <div>
+                <label class="field-label">Intelligence Summary</label>
+                <input id="wlReason" placeholder="e.g. Suspect in contraband corridor" class="field-input">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div>
+                    <label class="field-label">Threat Level</label>
+                    <select id="wlThreatLevel" class="field-input">
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label">Flagging Agency</label>
+                    <input id="wlAgency" value="Border Intelligence Branch" class="field-input">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeWatchlistModal()" class="btn btn-sm">Cancel</button>
+            <button onclick="submitWatchlistPlate()" class="btn btn-danger btn-sm"><i class="fa-solid fa-flag"></i> Register Watchlist Hit</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Scripts -->
+<script src="/static/js/app.js"></script>
+<script>
+    // Responsive sidebar toggle for mobile
+    (function() {
+        const sidebar = document.getElementById('sidebarNav');
+        const toggleBtn = document.getElementById('sidebarToggleBtn');
+        if (window.innerWidth < 768) {
+            if (toggleBtn) toggleBtn.style.display = 'flex';
+        }
+        window.addEventListener('resize', () => {
+            if (!toggleBtn) return;
+            toggleBtn.style.display = window.innerWidth < 768 ? 'flex' : 'none';
+            if (window.innerWidth >= 768 && sidebar) {
+                sidebar.classList.remove('sidebar-open');
+                sidebar.style.display = '';
+            }
+        });
+        // Override toggleSidebar for new class
+        window.toggleSidebar = function() {
+            if (!sidebar) return;
+            if (window.innerWidth < 768) {
+                sidebar.classList.toggle('sidebar-open');
+            }
+        };
+    })();
+
+    // Ensure first tab is shown
+    document.addEventListener('DOMContentLoaded', () => {
+        const firstSection = document.getElementById('tab-recon');
+        if (firstSection) {
+            firstSection.style.display = 'grid';
+            firstSection.classList.add('active');
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,26 @@
+numpy>=1.19.0
+opencv-python>=4.5.0
+torch>=1.9.0
+torchvision>=0.10.0
+ultralytics>=8.0.0
+scipy>=1.7.0
+pillow>=8.2.0
+matplotlib>=3.4.0
+scikit-learn>=0.24.0
+paho-mqtt>=1.5.0
+fastapi>=0.70.0
+uvicorn>=0.15.0
+python-dotenv>=0.19.0
+schedule>=1.1.0
+folium>=0.12.1
+
+# Innovation Architecture additions
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+requests>=2.28.0
+google-generativeai>=0.3.0
+
+# Optional
+# twilio>=7.0.0       # SMS alerts
+# gpsd-py3>=0.3.0    # GPS integration
+# redis>=4.0.0        # Advanced queue
